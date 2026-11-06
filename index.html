@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IIS Copernico-Carpeggiani - Dashboard Hub 3D Open Day</title>
+  
+  <!-- Tailwind CSS per styling HUD e UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Importmap per Three.js e moduli ufficiali via CDN -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    /* Reset base e font sci-fi */
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #05070e;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+
+    /* Effetto Scanlines CRT su tutto lo schermo (Opzionale) */
+    .crt-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.25) 50%
+      );
+      background-size: 100% 4px;
+      pointer-events: none;
+      z-index: 20;
+      opacity: 0.6;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Bagliore radiale retro per atmosfera Cyber */
+    .vignette-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle, transparent 45%, rgba(3, 5, 12, 0.88) 100%);
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    /* Effetto Glow per testo e bordi HUD */
+    .neon-text-cyan {
+      text-shadow: 0 0 10px rgba(0, 243, 255, 0.7), 0 0 20px rgba(0, 243, 255, 0.4);
+    }
+    .neon-border-cyan {
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.25), inset 0 0 15px rgba(0, 243, 255, 0.15);
+    }
+    .neon-border-magenta {
+      box-shadow: 0 0 15px rgba(255, 0, 127, 0.3), inset 0 0 15px rgba(255, 0, 127, 0.15);
+    }
+
+    /* Custom Scrollbar per pannelli */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 243, 255, 0.4);
+      border-radius: 4px;
+    }
+
+    /* Animazione Pulsante Launchpad */
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.4); }
+      50% { box-shadow: 0 0 22px rgba(0, 243, 255, 0.8); }
+    }
+    .pulse-glow {
+      animation: pulseGlow 2.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="text-slate-100">
+
+  <!-- Sovrapposizioni visive CRT e Vignettatura -->
+  <div id="crtOverlay" class="crt-overlay"></div>
+  <div class="vignette-overlay"></div>
+
+  <!-- Intestazione HUD Superiore -->
+  <header class="absolute top-4 left-1/2 -translate-x-1/2 z-30 text-center pointer-events-none w-11/12 max-w-4xl">
+    <div class="bg-slate-900/85 backdrop-blur-md border border-cyan-500/40 rounded-2xl px-6 py-3 shadow-2xl neon-border-cyan">
+      <div class="flex items-center justify-between gap-4">
+        <div class="text-left">
+          <div class="flex items-center gap-2">
+            <span class="inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-cyan-500/20 text-cyan-300 rounded border border-cyan-500/30">
+              Open Day Hub 2026
+            </span>
+            <span id="rotationStatusBadge" class="inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30">
+              Rotazione: Attiva
+            </span>
+          </div>
+          <h1 class="text-xl md:text-2xl font-black tracking-wider text-cyan-400 neon-text-cyan">
+            IIS COPERNICO - CARPEGGIANI
+          </h1>
+          <p class="text-xs text-slate-400 font-mono">FERRARA • INDIRIZZO INFORMATICA & TELECOMUNICAZIONI</p>
+        </div>
+        <div class="hidden sm:block text-right font-mono text-xs text-slate-400">
+          <div class="flex items-center justify-end gap-1.5 text-cyan-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="fpsCounter">60 FPS</span>
+          </div>
+          <div id="activeModelLabel" class="text-[11px] text-slate-400">Modello: Caricamento...</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- DASHBOARD HUB: Navigazione Progetti Open Day (Basso a Sinistra) -->
+  <section class="absolute bottom-5 left-4 z-30 w-full max-w-md">
+    <div class="bg-slate-900/90 backdrop-blur-md border border-cyan-500/40 rounded-2xl p-4 shadow-2xl neon-border-cyan pulse-glow">
+      <div class="flex items-center justify-between border-b border-slate-700/70 pb-2 mb-3">
+        <div class="flex items-center gap-2 font-mono font-bold text-cyan-400 text-xs tracking-wider">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          OPEN DAY PROJECT LAUNCHPAD
+        </div>
+        <span class="text-[10px] font-mono text-slate-400">Laboratorio Info 5° Anno</span>
+      </div>
+
+      <!-- Pulsanti di accesso diretto ai progetti -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        
+        <!-- Bottone 1: Mini Gioco -->
+        <button id="launchGameBtn" class="group relative bg-slate-800/90 hover:bg-cyan-950/80 border border-cyan-500/50 hover:border-cyan-400 rounded-xl p-2.5 text-left transition duration-200">
+          <div class="text-lg mb-1 group-hover:scale-110 transition duration-200">🎮</div>
+          <div class="font-bold text-xs text-slate-100 group-hover:text-cyan-300">Mini-Gioco!</div>
+          <div class="text-[10px] text-slate-400 font-mono">Avvia Demo</div>
+        </button>
+
+        <!-- Bottone 2: Info Indirizzo / Corso -->
+        <button id="launchInfoBtn" class="group relative bg-slate-800/90 hover:bg-emerald-950/80 border border-emerald-500/50 hover:border-emerald-400 rounded-xl p-2.5 text-left transition duration-200">
+          <div class="text-lg mb-1 group-hover:scale-110 transition duration-200">💻</div>
+          <div class="font-bold text-xs text-slate-100 group-hover:text-emerald-300">Sito della scuola!</div>
+          <div class="text-[10px] text-slate-400 font-mono">Materie & Piani</div>
+        </button>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- PANNELLO DI CONTROLLO INTERATTIVO (Destra HUD) -->
+  <aside class="absolute top-24 right-4 z-30 w-72 max-h-[calc(100vh-8rem)] overflow-y-auto">
+    <div class="bg-slate-900/85 backdrop-blur-md border border-cyan-500/30 rounded-2xl p-4 shadow-2xl space-y-4 font-sans text-xs">
+      
+      <!-- Titolo Sezione & Audio -->
+      <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+        <span class="font-bold font-mono text-cyan-400 uppercase tracking-wider flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+          Controlli 3D
+        </span>
+        <button id="soundToggleBtn" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-600 transition flex items-center gap-1" title="Attiva/Disattiva Audio Feedback">
+          <span id="soundIcon">🔇</span> Audio
+        </button>
+      </div>
+
+      <!-- BOTTONE PRINCIPALE PAUSA / RIPRENDI ROTAZIONE 3D -->
+      <div>
+        <label class="block text-slate-400 font-mono font-semibold mb-1">MOVIMENTO TELECAMERA</label>
+        <button id="toggleRotationMainBtn" class="w-full py-2.5 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400 text-cyan-300 font-bold font-mono rounded-xl transition flex items-center justify-center gap-2 shadow-lg">
+          <span id="toggleRotationIcon">⏸️</span>
+          <span id="toggleRotationText">PAUSA ROTAZIONE 3D</span>
+        </button>
+      </div>
+
+      <!-- Presets Colore Neon -->
+      <div>
+        <label class="block text-slate-400 font-mono font-semibold mb-2">TEMA NEON & LUCI</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button data-theme="cyberpunk" class="theme-btn px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-cyan-500/50 rounded-lg font-semibold text-cyan-300 transition flex items-center justify-between">
+            Cyberpunk <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+          </button>
+          <button data-theme="matrix" class="theme-btn px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-semibold text-emerald-400 transition flex items-center justify-between">
+            Matrix <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          </button>
+          <button data-theme="synthwave" class="theme-btn px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-semibold text-fuchsia-400 transition flex items-center justify-between">
+            Synthwave <span class="w-2.5 h-2.5 rounded-full bg-fuchsia-500"></span>
+          </button>
+          <button data-theme="amber" class="theme-btn px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-semibold text-amber-400 transition flex items-center justify-between">
+            Solar Gold <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Regolazione Fine Velocità Rotazione -->
+      <div>
+        <div class="flex justify-between text-slate-400 font-mono mb-1">
+          <label for="speedSlider">VELOCITÀ REGOLABILE</label>
+          <span id="speedValue" class="text-cyan-400">2.5x</span>
+        </div>
+        <input type="range" id="speedSlider" min="0" max="8" step="0.5" value="2.5" class="w-full accent-cyan-400 bg-slate-800 rounded-lg h-1.5 cursor-pointer">
+      </div>
+
+      <!-- Viste Camera preimpostate -->
+      <div>
+        <label class="block text-slate-400 font-mono font-semibold mb-2">INQUADRATURA CAMERA</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="camFrontBtn" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-200 transition">
+            Frontale
+          </button>
+          <button id="camScreenBtn" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-200 transition">
+            Primo Piano CRT
+          </button>
+          <button id="camKeyboardBtn" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-200 transition">
+            Tastiera
+          </button>
+          <button id="camIsoBtn" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-200 transition">
+            Panoramica
+          </button>
+        </div>
+      </div>
+
+      <!-- Funzioni Avanzate e Dimostrative -->
+      <div class="pt-2 border-t border-slate-700/60 space-y-2">
+        <label class="block text-slate-400 font-mono font-semibold">OPZIONI MOSTRA DEMO</label>
+
+        <!-- Toggle Wireframe -->
+        <button id="wireframeToggleBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-cyan-500/40 rounded-lg font-mono text-cyan-300 transition flex items-center justify-center gap-2">
+          🔷 Mostra Mesh Poligonale
+        </button>
+
+        <!-- Toggle Effetto CRT Scanline -->
+        <button id="crtToggleBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-mono text-slate-200 transition flex items-center justify-center gap-2">
+          📺 Toggle Scanline CRT
+        </button>
+
+        <!-- Cambia Codice sullo Schermo CRT -->
+        <button id="changeScreenTextBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-mono text-slate-200 transition flex items-center justify-center gap-2">
+          🖥️ Cambia Schermo CRT
+        </button>
+
+        <!-- Switch Modello Procedurale vs GLB -->
+        <button id="toggleModelSourceBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg font-mono text-slate-400 transition text-[11px]">
+          Usa Modello Procedurale Custom
+        </button>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- MODALE INTERATTIVO PER LANCIO PROGETTI & CONFIGURAZIONE LINK -->
+  <div id="projectModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-cyan-500/50 rounded-2xl max-w-lg w-full p-6 shadow-2xl neon-border-cyan space-y-4">
+      
+      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+        <div class="flex items-center gap-2">
+          <span id="modalIcon" class="text-2xl">🎮</span>
+          <h2 id="modalTitle" class="text-xl font-bold font-mono text-cyan-400">Titolo Progetto</h2>
+        </div>
+        <button id="closeModalBtn" class="text-slate-400 hover:text-slate-100 font-mono text-lg font-bold">✕</button>
+      </div>
+
+      <p id="modalDescription" class="text-sm text-slate-300 leading-relaxed">
+        Descrizione del progetto selezionato per la dimostrazione dell'Open Day.
+      </p>
+
+      <!-- Campo configuratore URL diretto per gli studenti durante il setup -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+        <label for="targetUrlInput" class="block text-xs font-mono text-slate-400">CONFIGURA LINK DI DESTINAZIONE (LOCAL O WEB):</label>
+        <div class="flex gap-2">
+          <input type="text" id="targetUrlInput" placeholder="es. http://localhost:3000 o gioco.html" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-400">
+          <button id="saveUrlBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-xs font-mono text-slate-200">
+            Salva Link
+          </button>
+        </div>
+        <div class="text-[10px] text-slate-500 font-mono">Puoi inserire il percorso relativo del file (es: `../minigioco/index.html`) o una porta locale (`http://localhost:5500`).</div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button id="modalCancelBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-mono text-slate-300">
+          Chiudi
+        </button>
+        <a id="modalConfirmLink" href="#" target="_blank" class="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold font-mono rounded-xl text-xs transition flex items-center gap-2 shadow-lg">
+          AVVIA PROGETTO ↗
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCRIPT ENGINE THREE.JS & LOGICA DASHBOARD HUB -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ==========================================
+    // 1. CONFIGURAZIONE STATO & TEMI COLORI
+    // ==========================================
+    const THEMES = {
+      cyberpunk: {
+        name: 'Cyberpunk',
+        background: 0x05070e,
+        primaryLight: 0x00f3ff,
+        secondaryLight: 0xff007f,
+        gridColor: 0x00f3ff,
+        dustColor: 0x00f3ff,
+        screenColor: '#00f3ff'
+      },
+      matrix: {
+        name: 'Matrix',
+        background: 0x020a05,
+        primaryLight: 0x00ff66,
+        secondaryLight: 0x005522,
+        gridColor: 0x00ff66,
+        dustColor: 0x33ff88,
+        screenColor: '#00ff66'
+      },
+      synthwave: {
+        name: 'Synthwave',
+        background: 0x0a0412,
+        primaryLight: 0xff0055,
+        secondaryLight: 0x7700ff,
+        gridColor: 0xff0088,
+        dustColor: 0xaa00ff,
+        screenColor: '#ff00aa'
+      },
+      amber: {
+        name: 'Solar Gold',
+        background: 0x0c0803,
+        primaryLight: 0xffaa00,
+        secondaryLight: 0xff3300,
+        gridColor: 0xffaa00,
+        dustColor: 0xffcc44,
+        screenColor: '#ffaa00'
+      }
+    };
+
+    let currentThemeKey = 'cyberpunk';
+    let currentTheme = THEMES[currentThemeKey];
+    let isWireframe = false;
+    let audioEnabled = false;
+    let loadedGLBModel = null;
+    let proceduralComputerGroup = null;
+    let activeComputerMesh = null;
+    let isUsingGLB = false;
+
+    // Configurazione Link dei progetti per l'Open Day
+    const projectConfig = {
+      game: {
+        title: "🎮 Mini-Gioco Interattivo",
+        icon: "🎮",
+        description: "Dimostrazione interattiva realizzata dagli studenti. Mostra ai ragazzi delle medie come la modifica di variabili nel codice (gravità, punteggio, velocità) influenzi immediatamente il gameplay.",
+        url: "#"
+      },
+      info: {
+        title: "💻 Indirizzo Informatica & Telecomunicazioni",
+        icon: "💻",
+        description: "IIS Copernico-Carpeggiani Ferrara: Percorso quinquennale incentrato su Programmazione (C, Java, PHP e SQL), Web Development, Basi di Dati e Architettura delle Reti di Calcolatori.",
+        url: "https://www.iiscopernico.edu.it/"
+      }
+    };
+
+    // ==========================================
+    // 2. CREAZIONE DELLA SCENA & RENDERER
+    // ==========================================
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(currentTheme.background);
+    scene.fog = new THREE.FogExp2(currentTheme.background, 0.04);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 2.2, 5.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 2.5;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02; // Mantiene la telecamera sopra il pavimento
+    controls.minDistance = 2.0;
+    controls.maxDistance = 12.0;
+    controls.target.set(0, 0.8, 0);
+
+    // ==========================================
+    // 3. ILLUMINAZIONE DINAMICA E NEON
+    // ==========================================
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+
+    const primaryPointLight = new THREE.PointLight(currentTheme.primaryLight, 6, 12);
+    primaryPointLight.position.set(3, 3.5, 3);
+    primaryPointLight.castShadow = true;
+    scene.add(primaryPointLight);
+
+    const secondaryPointLight = new THREE.PointLight(currentTheme.secondaryLight, 5, 10);
+    secondaryPointLight.position.set(-3, 1, -2);
+    scene.add(secondaryPointLight);
+
+    const floorGlowLight = new THREE.PointLight(currentTheme.primaryLight, 2, 6);
+    floorGlowLight.position.set(0, 0.2, 1);
+    scene.add(floorGlowLight);
+
+    // ==========================================
+    // 4. PAVIMENTO CYBER GRID ANIMATO
+    // ==========================================
+    function createGridTexture(lineColorHex) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#05070e';
+      ctx.fillRect(0, 0, 256, 256);
+
+      ctx.strokeStyle = lineColorHex;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = lineColorHex;
+      ctx.shadowBlur = 8;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 128); ctx.lineTo(256, 128);
+      ctx.moveTo(128, 0); ctx.lineTo(128, 256);
+      ctx.stroke();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(30, 30);
+      return texture;
+    }
+
+    let gridTexture = createGridTexture('#00f3ff');
+    const gridMaterial = new THREE.MeshStandardMaterial({
+      map: gridTexture,
+      roughness: 0.2,
+      metalness: 0.8,
+      emissiveMap: gridTexture,
+      emissive: new THREE.Color(currentTheme.gridColor),
+      emissiveIntensity: 0.35
+    });
+
+    const gridPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      gridMaterial
+    );
+    gridPlane.rotation.x = -Math.PI / 2;
+    gridPlane.position.y = 0;
+    gridPlane.receiveShadow = true;
+    scene.add(gridPlane);
+
+    let gridHelper = new THREE.GridHelper(60, 60, currentTheme.primaryLight, 0x1e293b);
+    gridHelper.position.y = 0.01;
+    scene.add(gridHelper);
+
+    // ==========================================
+    // 5. SISTEMA PARTICELLE 3D (CYBER DUST)
+    // ==========================================
+    const particleCount = 700;
+    const particleGeometry = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleVelocities = [];
+
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      particlePositions[i] = (Math.random() - 0.5) * 20;
+      particlePositions[i + 1] = Math.random() * 8;
+      particlePositions[i + 2] = (Math.random() - 0.5) * 20;
+
+      particleVelocities.push({
+        y: 0.003 + Math.random() * 0.005,
+        angle: Math.random() * Math.PI * 2,
+        speed: 0.002 + Math.random() * 0.004
+      });
+    }
+
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+    const particleCanvas = document.createElement('canvas');
+    particleCanvas.width = 32; particleCanvas.height = 32;
+    const pCtx = particleCanvas.getContext('2d');
+    const grad = pCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    pCtx.fillStyle = grad;
+    pCtx.fillRect(0, 0, 32, 32);
+    const particleTexture = new THREE.CanvasTexture(particleCanvas);
+
+    const particleMaterial = new THREE.PointsMaterial({
+      color: currentTheme.dustColor,
+      size: 0.12,
+      map: particleTexture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particleSystem);
+
+    // ==========================================
+    // 6. CREAZIONE CANVAS DINAMICO SCHERMO CRT
+    // ==========================================
+    const crtCanvas = document.createElement('canvas');
+    crtCanvas.width = 512;
+    crtCanvas.height = 384;
+    const crtCtx = crtCanvas.getContext('2d');
+    const crtTexture = new THREE.CanvasTexture(crtCanvas);
+
+    const screenModes = ['matrix', 'cern', 'code', 'copernico'];
+    let currentScreenModeIndex = 0;
+    let matrixColumns = Array(32).fill(0);
+
+    function updateCRTCanvas() {
+      crtCtx.fillStyle = '#060a0f';
+      crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
+
+      const mode = screenModes[currentScreenModeIndex];
+      const textColor = currentTheme.screenColor;
+
+      if (mode === 'matrix') {
+        crtCtx.fillStyle = 'rgba(6, 10, 15, 0.2)';
+        crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
+
+        crtCtx.fillStyle = textColor;
+        crtCtx.font = '16px monospace';
+        const chars = '0110100101001110010001100100111101010010010011010100000101010100010010010100001101000001';
+
+        for (let i = 0; i < matrixColumns.length; i++) {
+          const char = chars[Math.floor(Math.random() * chars.length)];
+          const x = i * 16;
+          const y = matrixColumns[i] * 16;
+
+          crtCtx.fillText(char, x, y);
+
+          if (y > crtCanvas.height && Math.random() > 0.95) {
+            matrixColumns[i] = 0;
+          }
+          matrixColumns[i]++;
+        }
+      } else if (mode === 'copernico') {
+        crtCtx.fillStyle = textColor;
+        crtCtx.shadowColor = textColor;
+        crtCtx.shadowBlur = 10;
+        crtCtx.font = 'bold 26px sans-serif';
+        crtCtx.textAlign = 'center';
+        crtCtx.fillText('IIS COPERNICO', 256, 140);
+        crtCtx.fillText('CARPEGGIANI', 256, 185);
+
+        crtCtx.font = '16px monospace';
+        crtCtx.fillStyle = '#94a3b8';
+        crtCtx.shadowBlur = 0;
+        crtCtx.fillText('LABORATORIO INFORMATICA 3D', 256, 240);
+        crtCtx.fillText('FERRARA • OPEN DAY HUB', 256, 270);
+      } else if (mode === 'code') {
+        crtCtx.fillStyle = textColor;
+        crtCtx.font = '14px monospace';
+        crtCtx.textAlign = 'left';
+        const lines = [
+          '// IIS Copernico-Carpeggiani Ferrara',
+          '#include <iostream>',
+          'using namespace std;',
+          '',
+          'int main() {',
+          '    Student s("Informatica");',
+          '    s.setSkillLevel(100);',
+          '    s.buildFuture();',
+          '    cout << "Benvenuti all\'Open Day!" << endl;',
+          '    return 0;',
+          '}'
+        ];
+        lines.forEach((line, idx) => {
+          crtCtx.fillText(line, 30, 50 + idx * 26);
+        });
+      } else if (mode === 'cern') {
+        crtCtx.fillStyle = textColor;
+        crtCtx.font = '15px monospace';
+        crtCtx.textAlign = 'left';
+        crtCtx.fillText('> SYSTEM_READY: OK', 30, 60);
+        crtCtx.fillText('> CONNECTING TO FERRARA_NODE...', 30, 95);
+        crtCtx.fillText('> STATUS: ONLINE [100Gbps]', 30, 130);
+        crtCtx.fillText('> LAB_INFORMATICA: ACTIVE', 30, 165);
+        crtCtx.fillText('> WAITING_FOR_STUDENTS...', 30, 200);
+
+        const progress = (Date.now() / 30) % 300;
+        crtCtx.strokeStyle = textColor;
+        crtCtx.strokeRect(30, 240, 300, 24);
+        crtCtx.fillRect(34, 244, progress, 16);
+      }
+
+      crtTexture.needsUpdate = true;
+    }
+
+    // ==========================================
+    // 7. GENERATORE MODELLO PROCEDURALE COMPUTER RETRO 3D
+    // ==========================================
+    function createProceduralRetroComputer() {
+      const group = new THREE.Group();
+      group.name = 'ProceduralComputer';
+
+      const plasticMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1f242d,
+        roughness: 0.5,
+        metalness: 0.2
+      });
+      const darkPlasticMaterial = new THREE.MeshStandardMaterial({
+        color: 0x11141a,
+        roughness: 0.6,
+        metalness: 0.1
+      });
+      const metallicMaterial = new THREE.MeshStandardMaterial({
+        color: 0x475569,
+        roughness: 0.3,
+        metalness: 0.8
+      });
+
+      const screenMaterial = new THREE.MeshStandardMaterial({
+        map: crtTexture,
+        emissiveMap: crtTexture,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 0.9,
+        roughness: 0.2,
+        metalness: 0.1
+      });
+
+      // MONITOR CASE
+      const monitorCase = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 1.7, 1.6),
+        plasticMaterial
+      );
+      monitorCase.position.set(0, 1.35, 0);
+      monitorCase.castShadow = true;
+      monitorCase.receiveShadow = true;
+      group.add(monitorCase);
+
+      // CRT Screen Mesh
+      const screenGeometry = new THREE.PlaneGeometry(1.7, 1.25);
+      const screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
+      screenMesh.position.set(0, 1.35, 0.81);
+      screenMesh.name = 'CRTScreenMesh';
+      group.add(screenMesh);
+
+      // Logo Plate
+      const logoPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.08, 0.02),
+        metallicMaterial
+      );
+      logoPlate.position.set(0, 0.62, 0.82);
+      group.add(logoPlate);
+
+      // DESKTOP SYSTEM UNIT
+      const desktopUnit = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.6, 2.0),
+        plasticMaterial
+      );
+      desktopUnit.position.set(0, 0.3, 0.1);
+      desktopUnit.castShadow = true;
+      desktopUnit.receiveShadow = true;
+      group.add(desktopUnit);
+
+      // Floppy Slot
+      const floppySlot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 0.08, 0.05),
+        darkPlasticMaterial
+      );
+      floppySlot.position.set(0.6, 0.35, 1.08);
+      group.add(floppySlot);
+
+      // Power LED
+      const powerBtn = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.05, 16),
+        new THREE.MeshStandardMaterial({
+          color: currentTheme.primaryLight,
+          emissive: currentTheme.primaryLight,
+          emissiveIntensity: 1
+        })
+      );
+      powerBtn.rotation.x = Math.PI / 2;
+      powerBtn.position.set(-0.8, 0.35, 1.09);
+      powerBtn.name = 'PowerLED';
+      group.add(powerBtn);
+
+      // KEYBOARD
+      const keyboardBase = new THREE.Mesh(
+        new THREE.BoxGeometry(1.9, 0.1, 0.7),
+        darkPlasticMaterial
+      );
+      keyboardBase.position.set(0, 0.05, 1.4);
+      keyboardBase.rotation.x = 0.08;
+      keyboardBase.castShadow = true;
+      group.add(keyboardBase);
+
+      const keyMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4 });
+      const keyGroup = new THREE.Group();
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 14; c++) {
+          const key = new THREE.Mesh(
+            new THREE.BoxGeometry(0.1, 0.04, 0.09),
+            keyMat
+          );
+          key.position.set(-0.8 + c * 0.12, 0.09, 1.18 + r * 0.11);
+          keyGroup.add(key);
+        }
+      }
+      group.add(keyGroup);
+
+      // MOUSE
+      const mouseMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, 0.12, 0.38),
+        plasticMaterial
+      );
+      mouseMesh.position.set(1.2, 0.06, 1.4);
+      mouseMesh.rotation.y = -0.15;
+      mouseMesh.castShadow = true;
+      group.add(mouseMesh);
+
+      // Posizionamento sulla griglia (y = 0)
+      group.position.y = 0;
+      return group;
+    }
+
+    proceduralComputerGroup = createProceduralRetroComputer();
+    scene.add(proceduralComputerGroup);
+    activeComputerMesh = proceduralComputerGroup;
+    updateActiveModelLabel('Procedural 3D Computer (Native)');
+
+    // ==========================================
+    // 8. CARICAMENTO GLTF COMPUTER.GLB CON ALLINEAMENTO PAVIMENTO PERFECT (Y=0)
+    // ==========================================
+    const gltfLoader = new GLTFLoader();
+
+    try {
+      // Verifica se l'ambiente supporta la risoluzione dei relativi (evita errori con blob: URLs in anteprima)
+      const isBlob = window.location.protocol === 'blob:' || window.location.href.startsWith('blob:');
+
+      if (!isBlob) {
+        gltfLoader.load(
+          'computer.glb',
+          (gltf) => {
+            console.log('✅ File "computer.glb" caricato con successo!');
+            loadedGLBModel = gltf.scene;
+
+            // Calcolo dimensioni iniziali
+            const boxBefore = new THREE.Box3().setFromObject(loadedGLBModel);
+            const sizeBefore = boxBefore.getSize(new THREE.Vector3());
+
+            const maxDim = Math.max(sizeBefore.x, sizeBefore.y, sizeBefore.z);
+            const scale = 2.4 / maxDim;
+            loadedGLBModel.scale.set(scale, scale, scale);
+
+            // Ricalcola Bounding Box aggiornato dopo lo scaling
+            const box = new THREE.Box3().setFromObject(loadedGLBModel);
+            const center = box.getCenter(new THREE.Vector3());
+
+            // Centra su X e Z, allinea la BASE esatta del modello su Y = 0 (Superficie del pavimento)
+            loadedGLBModel.position.x = -center.x;
+            loadedGLBModel.position.z = -center.z;
+            loadedGLBModel.position.y = -box.min.y;
+
+            loadedGLBModel.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+            });
+
+            scene.remove(proceduralComputerGroup);
+            scene.add(loadedGLBModel);
+            activeComputerMesh = loadedGLBModel;
+            isUsingGLB = true;
+
+            updateActiveModelLabel('File Esterno: computer.glb');
+          },
+          (xhr) => {
+            if (xhr.lengthComputable) {
+              const percent = Math.round((xhr.loaded / xhr.total) * 100);
+              console.log(`Caricamento computer.glb: ${percent}%`);
+            }
+          },
+          (error) => {
+            console.warn('ℹ️ File "computer.glb" non rilevato nella cartella. Utilizzo del modello 3D procedurale integrato.', error);
+          }
+        );
+      } else {
+        console.warn('ℹ️ Ambiente di anteprima isolato rilevato: caricamento file locale saltato. Utilizzo del modello 3D procedurale integrato.');
+      }
+    } catch (err) {
+      console.warn('ℹ️ Impossibile caricare "computer.glb" in questo ambiente. Utilizzo del modello 3D procedurale.', err);
+    }
+
+    function updateActiveModelLabel(text) {
+      document.getElementById('activeModelLabel').innerText = `Modello: ${text}`;
+    }
+
+    // ==========================================
+    // 9. SINTETIZZATORE AUDIO WEB AUDIO API
+    // ==========================================
+    let audioCtx = null;
+
+    function playBeep(freq = 600, type = 'sine', duration = 0.08) {
+      if (!audioEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        console.error('Audio playback error', e);
+      }
+    }
+
+    // ==========================================
+    // 10. INTERAZIONI MOUSE & RAYCASTING 3D
+    // ==========================================
+    const raycaster = new THREE.Raycaster();
+    const mouseVector = new THREE.Vector2();
+
+    window.addEventListener('click', (event) => {
+      // Ignora click su pannelli HUD o modali
+      if (event.target.closest('aside') || event.target.closest('header') || event.target.closest('section') || event.target.closest('#projectModal') || event.target.closest('button')) return;
+
+      mouseVector.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouseVector.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouseVector, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      if (intersects.length > 0) {
+        playBeep(900, 'square', 0.1);
+
+        const origIntensity = primaryPointLight.intensity;
+        primaryPointLight.intensity = 15;
+        setTimeout(() => {
+          primaryPointLight.intensity = origIntensity;
+        }, 150);
+
+        currentScreenModeIndex = (currentScreenModeIndex + 1) % screenModes.length;
+      }
+    });
+
+    // ==========================================
+    // 11. CONTROLLI INTERFACCIA HUD & PAUSA ROTAZIONE
+    // ==========================================
+
+    // 11.1 TOGGLE PAUSA / RIPRENDI ROTAZIONE 3D
+    const toggleRotationMainBtn = document.getElementById('toggleRotationMainBtn');
+    const toggleRotationIcon = document.getElementById('toggleRotationIcon');
+    const toggleRotationText = document.getElementById('toggleRotationText');
+    const rotationStatusBadge = document.getElementById('rotationStatusBadge');
+
+    function toggleAutoRotation() {
+      controls.autoRotate = !controls.autoRotate;
+      updateRotationUI();
+      playBeep(controls.autoRotate ? 750 : 450, 'sine');
+    }
+
+    function updateRotationUI() {
+      if (controls.autoRotate) {
+        toggleRotationIcon.innerText = '⏸️';
+        toggleRotationText.innerText = 'PAUSA ROTAZIONE 3D';
+        rotationStatusBadge.innerText = 'Rotazione: Attiva';
+        rotationStatusBadge.className = 'inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30';
+        toggleRotationMainBtn.className = 'w-full py-2.5 px-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400 text-cyan-300 font-bold font-mono rounded-xl transition flex items-center justify-center gap-2 shadow-lg';
+      } else {
+        toggleRotationIcon.innerText = '▶️';
+        toggleRotationText.innerText = 'RIPRENDI ROTAZIONE 3D';
+        rotationStatusBadge.innerText = 'Rotazione: In Pausa';
+        rotationStatusBadge.className = 'inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-amber-500/20 text-amber-300 rounded border border-amber-500/30';
+        toggleRotationMainBtn.className = 'w-full py-2.5 px-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400 text-amber-300 font-bold font-mono rounded-xl transition flex items-center justify-center gap-2 shadow-lg';
+      }
+    }
+
+    toggleRotationMainBtn.addEventListener('click', toggleAutoRotation);
+
+    // 11.2 Slider Velocità
+    const speedSlider = document.getElementById('speedSlider');
+    const speedValueDisplay = document.getElementById('speedValue');
+
+    speedSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      controls.autoRotateSpeed = val * 1.5;
+      if (val > 0 && !controls.autoRotate) {
+        controls.autoRotate = true;
+        updateRotationUI();
+      } else if (val === 0 && controls.autoRotate) {
+        controls.autoRotate = false;
+        updateRotationUI();
+      }
+      speedValueDisplay.innerText = `${val}x`;
+    });
+
+    // 11.3 Cambio Temi Neon
+    document.querySelectorAll('.theme-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const themeKey = e.currentTarget.getAttribute('data-theme');
+        applyTheme(themeKey);
+        playBeep(700, 'sine');
+      });
+    });
+
+    function applyTheme(themeKey) {
+      if (!THEMES[themeKey]) return;
+      currentThemeKey = themeKey;
+      currentTheme = THEMES[themeKey];
+
+      scene.background.setHex(currentTheme.background);
+      scene.fog.color.setHex(currentTheme.background);
+
+      primaryPointLight.color.setHex(currentTheme.primaryLight);
+      secondaryPointLight.color.setHex(currentTheme.secondaryLight);
+      floorGlowLight.color.setHex(currentTheme.primaryLight);
+
+      gridTexture = createGridTexture(currentTheme.screenColor);
+      gridMaterial.map = gridTexture;
+      gridMaterial.emissive.setHex(currentTheme.gridColor);
+      gridHelper.geometry.dispose();
+      scene.remove(gridHelper);
+      gridHelper = new THREE.GridHelper(60, 60, currentTheme.primaryLight, 0x1e293b);
+      gridHelper.position.y = 0.01;
+      scene.add(gridHelper);
+
+      particleMaterial.color.setHex(currentTheme.dustColor);
+
+      const led = proceduralComputerGroup.getObjectByName('PowerLED');
+      if (led) {
+        led.material.color.setHex(currentTheme.primaryLight);
+        led.material.emissive.setHex(currentTheme.primaryLight);
+      }
+
+      document.querySelectorAll('.theme-btn').forEach(b => {
+        b.classList.remove('border-cyan-500/50');
+        b.classList.add('border-slate-700');
+      });
+      const activeBtn = document.querySelector(`[data-theme="${themeKey}"]`);
+      if (activeBtn) {
+        activeBtn.classList.remove('border-slate-700');
+        activeBtn.classList.add('border-cyan-500/50');
+      }
+    }
+
+    // 11.4 Inquadrature Fotocamera
+    function animateCameraTo(targetPos, targetLookAt) {
+      const startPos = camera.position.clone();
+      const startTarget = controls.target.clone();
+      let startTime = null;
+      const duration = 800;
+
+      function step(now) {
+        if (!startTime) startTime = now;
+        const progress = Math.min((now - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        camera.position.lerpVectors(startPos, targetPos, ease);
+        controls.target.lerpVectors(startTarget, targetLookAt, ease);
+        controls.update();
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    document.getElementById('camFrontBtn').addEventListener('click', () => {
+      animateCameraTo(new THREE.Vector3(0, 1.4, 4.2), new THREE.Vector3(0, 1.3, 0));
+      playBeep(500);
+    });
+    document.getElementById('camScreenBtn').addEventListener('click', () => {
+      animateCameraTo(new THREE.Vector3(0, 1.35, 1.8), new THREE.Vector3(0, 1.35, 0));
+      playBeep(650);
+    });
+    document.getElementById('camKeyboardBtn').addEventListener('click', () => {
+      animateCameraTo(new THREE.Vector3(0, 1.2, 2.2), new THREE.Vector3(0, 0.2, 1.2));
+      playBeep(600);
+    });
+    document.getElementById('camIsoBtn').addEventListener('click', () => {
+      animateCameraTo(new THREE.Vector3(3.5, 3.0, 4.5), new THREE.Vector3(0, 0.8, 0));
+      playBeep(700);
+    });
+
+    // 11.5 Controlli Avanzati (Wireframe, CRT, Modello)
+    document.getElementById('wireframeToggleBtn').addEventListener('click', (e) => {
+      isWireframe = !isWireframe;
+      scene.traverse((obj) => {
+        if (obj.isMesh && obj !== gridPlane) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(m => m.wireframe = isWireframe);
+          } else if (obj.material) {
+            obj.material.wireframe = isWireframe;
+          }
+        }
+      });
+      e.currentTarget.classList.toggle('bg-cyan-900/50');
+      playBeep(isWireframe ? 1000 : 400, 'triangle');
+    });
+
+    const crtOverlay = document.getElementById('crtOverlay');
+    document.getElementById('crtToggleBtn').addEventListener('click', (e) => {
+      const isVisible = crtOverlay.style.opacity !== '0';
+      crtOverlay.style.opacity = isVisible ? '0' : '0.6';
+      e.currentTarget.classList.toggle('bg-slate-700');
+      playBeep(500);
+    });
+
+    document.getElementById('changeScreenTextBtn').addEventListener('click', () => {
+      currentScreenModeIndex = (currentScreenModeIndex + 1) % screenModes.length;
+      playBeep(850, 'sine');
+    });
+
+    document.getElementById('toggleModelSourceBtn').addEventListener('click', () => {
+      if (isUsingGLB) {
+        scene.remove(loadedGLBModel);
+        scene.add(proceduralComputerGroup);
+        activeComputerMesh = proceduralComputerGroup;
+        isUsingGLB = false;
+        updateActiveModelLabel('Procedural 3D Computer (Native)');
+      } else if (loadedGLBModel) {
+        scene.remove(proceduralComputerGroup);
+        scene.add(loadedGLBModel);
+        activeComputerMesh = loadedGLBModel;
+        isUsingGLB = true;
+        updateActiveModelLabel('File Esterno: computer.glb');
+      } else {
+        updateActiveModelLabel('Procedural 3D (computer.glb non caricato)');
+      }
+      playBeep(500);
+    });
+
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    soundToggleBtn.addEventListener('click', () => {
+      audioEnabled = !audioEnabled;
+      document.getElementById('soundIcon').innerText = audioEnabled ? '🔊' : '🔇';
+      soundToggleBtn.classList.toggle('bg-cyan-900/50', audioEnabled);
+      if (audioEnabled) playBeep(800, 'sine', 0.15);
+    });
+
+    // ==========================================
+    // 12. LOGICA MODALE LAUNCHPAD PROGETTI
+    // ==========================================
+    const projectModal = document.getElementById('projectModal');
+    const modalIcon = document.getElementById('modalIcon');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalDescription = document.getElementById('modalDescription');
+    const targetUrlInput = document.getElementById('targetUrlInput');
+    const modalConfirmLink = document.getElementById('modalConfirmLink');
+    let currentActiveProjectKey = null;
+
+    function openProjectModal(key) {
+      const proj = projectConfig[key];
+      if (!proj) return;
+
+      currentActiveProjectKey = key;
+      modalIcon.innerText = proj.icon;
+      modalTitle.innerText = proj.title;
+      modalDescription.innerText = proj.description;
+      targetUrlInput.value = proj.url;
+      modalConfirmLink.href = proj.url;
+
+      projectModal.classList.remove('hidden');
+      playBeep(800, 'sine');
+    }
+
+    function closeModal() {
+      projectModal.classList.add('hidden');
+      playBeep(400, 'sine');
+    }
+
+    document.getElementById('launchGameBtn').addEventListener('click', () => openProjectModal('game'));
+    document.getElementById('launchInfoBtn').addEventListener('click', () => openProjectModal('info'));
+
+    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+
+    document.getElementById('saveUrlBtn').addEventListener('click', () => {
+      if (currentActiveProjectKey) {
+        const newUrl = targetUrlInput.value.trim();
+        projectConfig[currentActiveProjectKey].url = newUrl;
+        modalConfirmLink.href = newUrl;
+        playBeep(900, 'sine');
+      }
+    });
+
+    // ==========================================
+    // 13. LOOP ANIMAZIONE PRINCIPALE
+    // ==========================================
+    let lastTime = performance.now();
+    let frameCount = 0;
+    const fpsDisplay = document.getElementById('fpsCounter');
+
+    function animate(time) {
+      requestAnimationFrame(animate);
+
+      frameCount++;
+      if (time - lastTime >= 1000) {
+        fpsDisplay.innerText = `${frameCount} FPS`;
+        frameCount = 0;
+        lastTime = time;
+      }
+
+      gridTexture.offset.y -= 0.003;
+
+      const positions = particleGeometry.attributes.position.array;
+      for (let i = 0; i < particleCount; i++) {
+        const idx = i * 3;
+        const vel = particleVelocities[i];
+
+        positions[idx + 1] += vel.y;
+        positions[idx] += Math.sin(time * 0.001 + vel.angle) * vel.speed;
+
+        if (positions[idx + 1] > 8) {
+          positions[idx + 1] = 0;
+          positions[idx] = (Math.random() - 0.5) * 20;
+          positions[idx + 2] = (Math.random() - 0.5) * 20;
+        }
+      }
+      particleGeometry.attributes.position.needsUpdate = true;
+
+      updateCRTCanvas();
+
+      if (activeComputerMesh && controls.autoRotate) {
+        activeComputerMesh.position.y = (isUsingGLB && loadedGLBModel ? loadedGLBModel.position.y : 0) + Math.sin(time * 0.002) * 0.03;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate(performance.now());
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
