@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
+
+body {
+    font-family: 'Nunito', sans-serif;
+    background: linear-gradient(135deg, #74ebd5 0%, #9face6 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+}
+
+.hole {
+    width: 100px;
+    height: 100px;
+    background-color: #5D4037;
+    border-radius: 50%;
+    border: 6px solid #3E2723;
+    box-shadow: inset 0px 10px 15px rgba(0,0,0,0.5), 0px 4px 6px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.hole:active {
+    transform: scale(0.95);
+}
+
+.mole {
+    font-size: 4rem;
+    line-height: 1;
+    position: absolute;
+    transform: translateY(100%);
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.mole.up {
+    transform: translateY(0);
+}
+
+.mole.bonus {
+    filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.9));
+}
+
+.mole.rare {
+    filter: drop-shadow(0 0 12px rgba(236, 72, 153, 0.9));
+    animation: pulse-special 0.8s infinite alternate;
+}
+
+.mole.sparkle {
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.95));
+    animation: pulse-special 0.9s infinite alternate;
+}
+
+@keyframes whack-effect {
+    0% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.2) rotate(15deg); }
+    100% { transform: scale(0) rotate(-15deg); }
+}
+
+@keyframes pulse-special {
+    0% { transform: scale(0.98); }
+    100% { transform: scale(1.08); }
+}
+
+.whacked {
+    animation: whack-effect 0.2s forwards !important;
+    filter: grayscale(100%);
+}

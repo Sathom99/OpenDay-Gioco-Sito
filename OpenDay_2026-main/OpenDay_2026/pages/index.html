@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acchiappa la Talpa!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="p-2">
+    <header class="text-center mt-2 mb-3">
+        <h1 class="text-3xl font-black text-white drop-shadow-lg mb-1">Acchiappa la Talpa! 🐹</h1>
+        <p class="text-indigo-800 font-bold">Schiaccia più talpe che puoi!</p>
+    </header>
+
+    <div class="flex flex-wrap justify-center gap-4 mb-3 bg-white/40 p-2 rounded-2xl shadow-lg backdrop-blur-sm border border-white/50">
+        <div class="text-center">
+            <div class="text-sm uppercase tracking-widest text-indigo-900 font-bold">Punti</div>
+            <div id="score" class="text-3xl font-black text-indigo-700">0</div>
+        </div>
+        <div class="text-center">
+            <div class="text-sm uppercase tracking-widest text-indigo-900 font-bold">Tempo</div>
+            <div id="time" class="text-3xl font-black text-rose-600">30</div>
+        </div>
+        <div class="text-center">
+            <div class="text-sm uppercase tracking-widest text-indigo-900 font-bold">Record</div>
+            <div id="best-score" class="text-3xl font-black text-amber-500">0</div>
+        </div>
+    </div>
+
+    <div class="mb-3 rounded-2xl bg-white/40 p-2 shadow-lg backdrop-blur-sm border border-white/50">
+        <h2 class="mb-1 text-center text-xs uppercase tracking-widest text-indigo-900 font-bold">Valore delle talpe</h2>
+        <div class="flex flex-wrap justify-center gap-2 text-center">
+            <div class="rounded-xl bg-white/60 px-3 py-1">
+                <span class="text-xl">🐹</span>
+                <span class="ml-2 font-black text-indigo-900">+1 punto</span>
+            </div>
+            <div class="rounded-xl bg-white/60 px-3 py-1">
+                <span class="text-xl">🐰</span>
+                <span class="ml-2 font-black text-indigo-900">+2 punti</span>
+            </div>
+            <div class="rounded-xl bg-white/60 px-3 py-1">
+                <span class="text-xl">🐭</span>
+                <span class="ml-2 font-black text-indigo-900">+3 punti</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-wrap justify-center gap-2 mb-3">
+        <button type="button" class="difficulty-btn bg-indigo-600 text-white px-4 py-2 rounded-full font-black shadow-md transition-all border-2 border-indigo-700" data-difficulty="easy" aria-pressed="false">
+            Facile
+        </button>
+        <button type="button" class="difficulty-btn bg-amber-500 text-white px-4 py-2 rounded-full font-black shadow-md transition-all border-2 border-amber-600" data-difficulty="medium" aria-pressed="true">
+            Medio
+        </button>
+        <button type="button" class="difficulty-btn bg-rose-500 text-white px-4 py-2 rounded-full font-black shadow-md transition-all border-2 border-rose-600" data-difficulty="hard" aria-pressed="false">
+            Difficile
+        </button>
+    </div>
+
+    <button id="start-btn" class="mb-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xl font-black py-2 px-6 rounded-full shadow-[0_4px_0_#4338ca] active:shadow-[0_0px_0_#4338ca] active:translate-y-[4px] transition-all">
+        INIZIA IL GIOCO! ▶️
+    </button>
+
+    <div id="game-board" class="grid grid-cols-3 gap-2 p-3 bg-green-500/80 rounded-3xl shadow-xl border-4 border-green-600 opacity-50 pointer-events-none transition-opacity duration-300">
+        <div class="hole" data-id="0"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="1"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="2"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="3"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="4"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="5"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="6"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="7"><div class="mole">🐹</div></div>
+        <div class="hole" data-id="8"><div class="mole">🐹</div></div>
+    </div>
+
+    <div id="game-over-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full transform scale-100 transition-transform">
+            <h2 class="text-4xl font-black text-rose-500 mb-2">Tempo Scaduto!</h2>
+            <p class="text-xl text-gray-600 mb-6">Hai acchiappato:</p>
+            <div class="text-6xl font-black text-indigo-600 mb-2" id="final-score">0</div>
+            <p class="text-lg text-gray-500 font-bold mb-8">Talpe 🐹</p>
+
+            <button id="play-again-btn" class="w-full bg-emerald-500 hover:bg-emerald-400 text-white text-xl font-black py-4 px-6 rounded-2xl shadow-[0_5px_0_#059669] active:shadow-[0_0px_0_#059669] active:translate-y-[5px] transition-all">
+                GIOCA ANCORA 🔄
+            </button>
+        </div>
+    </div>
+
+    <script src="../js/game.js" defer></script>
+</body>
+</html>
